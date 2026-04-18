@@ -1,0 +1,8 @@
+# Environment variables - NEVER commit these
+.env
+
+# Dependencies
+node_modules/
+
+# Uploads (user files)
+uploads/
