@@ -33,7 +33,7 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-const allowedOrigin = 'https://ai-assistant-6cnp.vercel.app';
+const allowedOrigin = 'https://ai-assistant-frontend-ebon.vercel.app';
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || origin === allowedOrigin) {
