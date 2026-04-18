@@ -33,10 +33,13 @@ app.use((req, res, next) => {
 });
 
 // Middleware
-const allowedOrigin = 'https://ai-assistant-frontend-ebon.vercel.app';
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://ai-assistant-frontend-gules.vercel.app',
+];
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || origin === allowedOrigin) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -49,7 +52,9 @@ app.use(cors({
 
 // Set custom headers for all responses (for CORS)
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin === allowedOrigin ? allowedOrigin : '');
+  if (allowedOrigins.includes(req.headers.origin)) {
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+  }
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
