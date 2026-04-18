@@ -45,17 +45,7 @@ app.use(cors({
   credentials: true,
 }));
 
-// Handle preflight requests for all routes
-app.options('/*', cors({
-  origin: (origin, callback) => {
-    if (!origin || origin === allowedOrigin) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-}));
+// ...removed redundant app.options for CORS preflight (handled by app.use(cors))
 
 // Set custom headers for all responses (for CORS)
 app.use((req, res, next) => {
