@@ -35,6 +35,7 @@ app.use((req, res, next) => {
 // Middleware
 const allowedOrigins = [
   'http://localhost:5173',
+  "https://uptimerobot.com",
   "https://ai-assistant-frontend-liard.vercel.app"
 ];
 app.use(cors({
