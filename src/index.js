@@ -35,7 +35,7 @@ app.use((req, res, next) => {
 // Middleware
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://ai-assistant-frontend-gules.vercel.app',
+  "https://ai-assistant-frontend-liard.vercel.app"
 ];
 app.use(cors({
   origin: (origin, callback) => {
