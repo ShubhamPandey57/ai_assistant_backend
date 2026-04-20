@@ -43,9 +43,8 @@ router.post('/register', [
 
 // POST /api/auth/login
 router.post('/login', [
-  body('email').isEmail().withMessage('Please provide a valid email'),
+  body('adminId').notEmpty().withMessage('Admin ID is required'),
   body('password').notEmpty().withMessage('Password is required'),
-
 ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -53,18 +52,15 @@ router.post('/login', [
       return res.status(400).json({ status: 400, message: errors.array()[0].msg });
     }
 
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email }).select('+password');
-
+    const { adminId, password } = req.body;
+    const user = await User.findOne({ adminId, isAdmin: true }).select('+password');
     if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ status: 401, message: 'Invalid credentials.' });
+      return res.status(401).json({ status: 401, message: 'Invalid admin credentials.' });
     }
-
     const token = generateToken(user._id);
     res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email },
+      user: { id: user._id, name: user.name, adminId: user.adminId, isAdmin: user.isAdmin },
     });
   } catch (err) {
     next(err);
