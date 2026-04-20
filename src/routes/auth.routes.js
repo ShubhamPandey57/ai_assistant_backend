@@ -43,7 +43,6 @@ router.post('/register', [
 
 // POST /api/auth/login
 router.post('/login', [
-  body('adminId').notEmpty().withMessage('Admin ID is required'),
   body('password').notEmpty().withMessage('Password is required'),
 ], async (req, res, next) => {
   try {
@@ -52,15 +51,36 @@ router.post('/login', [
       return res.status(400).json({ status: 400, message: errors.array()[0].msg });
     }
 
-    const { adminId, password } = req.body;
-    const user = await User.findOne({ adminId, isAdmin: true }).select('+password');
+    const { email, adminId, password } = req.body;
+
+    // Admin login — uses adminId
+    if (adminId) {
+      if (!adminId.trim()) {
+        return res.status(400).json({ status: 400, message: 'Admin ID is required.' });
+      }
+      const admin = await User.findOne({ adminId, isAdmin: true }).select('+password');
+      if (!admin || !(await admin.comparePassword(password))) {
+        return res.status(401).json({ status: 401, message: 'Invalid admin credentials.' });
+      }
+      const token = generateToken(admin._id);
+      return res.json({
+        token,
+        user: { id: admin._id, name: admin.name, adminId: admin.adminId, isAdmin: admin.isAdmin },
+      });
+    }
+
+    // User login — uses email
+    if (!email || !email.trim()) {
+      return res.status(400).json({ status: 400, message: 'Email is required.' });
+    }
+    const user = await User.findOne({ email }).select('+password');
     if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ status: 401, message: 'Invalid admin credentials.' });
+      return res.status(401).json({ status: 401, message: 'Invalid email or password.' });
     }
     const token = generateToken(user._id);
-    res.json({
+    return res.json({
       token,
-      user: { id: user._id, name: user.name, adminId: user.adminId, isAdmin: user.isAdmin },
+      user: { id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin },
     });
   } catch (err) {
     next(err);
