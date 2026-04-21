@@ -1,5 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const passport = require('passport');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
@@ -8,6 +9,89 @@ const router = express.Router();
 
 const generateToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+// ── Google OAuth Strategy (only register if credentials are configured) ───────
+const googleConfigured =
+  !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET;
+
+if (googleConfigured) {
+  const GoogleStrategy = require('passport-google-oauth20').Strategy;
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback',
+      },
+      async (_accessToken, _refreshToken, profile, done) => {
+        try {
+          const email = profile.emails?.[0]?.value;
+          if (!email) return done(new Error('No email from Google'), null);
+
+          let user = await User.findOne({ googleId: profile.id });
+          if (!user) {
+            user = await User.findOne({ email });
+            if (user) {
+              user.googleId = profile.id;
+              user.avatar = user.avatar || profile.photos?.[0]?.value;
+              await user.save();
+            } else {
+              user = await User.create({
+                name: profile.displayName || email.split('@')[0],
+                email,
+                googleId: profile.id,
+                avatar: profile.photos?.[0]?.value || null,
+              });
+            }
+          }
+          return done(null, user);
+        } catch (err) {
+          return done(err, null);
+        }
+      }
+    )
+  );
+  console.log('✅ Google OAuth strategy registered');
+} else {
+  console.warn('⚠️  Google OAuth credentials not found in .env — /api/auth/google routes disabled');
+}
+
+// ── Google OAuth Routes ───────────────────────────────────────────────────────
+const googleNotConfigured = (_req, res) =>
+  res.status(501).json({ message: 'Google OAuth is not configured on this server.' });
+
+// GET /api/auth/google — start OAuth flow
+router.get(
+  '/google',
+  googleConfigured
+    ? passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+    : googleNotConfigured
+);
+
+// GET /api/auth/google/callback — handle Google callback
+if (googleConfigured) {
+  router.get(
+    '/google/callback',
+    passport.authenticate('google', {
+      session: false,
+      failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=google_failed`,
+    }),
+    (req, res) => {
+      const token = generateToken(req.user._id);
+      const user = JSON.stringify({
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        avatar: req.user.avatar,
+        isAdmin: req.user.isAdmin,
+      });
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/auth/callback?token=${token}&user=${encodeURIComponent(user)}`);
+    }
+  );
+}
+
+// ── Standard Auth Routes ──────────────────────────────────────────────────────
 
 // POST /api/auth/register
 router.post('/register', [
@@ -99,6 +183,7 @@ router.get('/me', auth, (req, res) => {
       id: req.user._id,
       name: req.user.name,
       email: req.user.email,
+      avatar: req.user.avatar,
       createdAt: req.user.createdAt,
     },
   });

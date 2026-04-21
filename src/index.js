@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const session = require('express-session');
+const passport = require('passport');
 const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 
@@ -64,6 +66,14 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
+// Session + Passport (needed for passport even with session: false on routes)
+app.use(session({
+  secret: process.env.JWT_SECRET || 'studyai-session-secret',
+  resave: false,
+  saveUninitialized: false,
+}));
+app.use(passport.initialize());
 
 // Routes
 app.use('/api/auth', authRoutes);
