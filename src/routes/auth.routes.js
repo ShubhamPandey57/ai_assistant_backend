@@ -183,10 +183,103 @@ router.get('/me', auth, (req, res) => {
       id: req.user._id,
       name: req.user.name,
       email: req.user.email,
+      adminId: req.user.adminId,
+      isAdmin: req.user.isAdmin,
+      bio: req.user.bio,
       avatar: req.user.avatar,
       createdAt: req.user.createdAt,
     },
   });
+});
+
+// PATCH /api/auth/profile — update name & bio
+router.patch('/profile', auth, [
+  body('name').optional().trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
+  body('bio').optional().isLength({ max: 160 }).withMessage('Bio cannot exceed 160 characters'),
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ status: 400, message: errors.array()[0].msg });
+
+    const { name, bio } = req.body;
+    const user = req.user;
+    if (name !== undefined) user.name = name.trim();
+    if (bio !== undefined) user.bio = bio;
+    await user.save();
+
+    res.json({ user: { id: user._id, name: user.name, email: user.email, adminId: user.adminId, isAdmin: user.isAdmin, bio: user.bio } });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/auth/change-password — change current password
+router.patch('/change-password', auth, [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ status: 400, message: errors.array()[0].msg });
+
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user.password) return res.status(400).json({ status: 400, message: 'This account uses Google sign-in. Set a password via security settings.' });
+    if (!(await user.comparePassword(currentPassword))) {
+      return res.status(401).json({ status: 401, message: 'Current password is incorrect.' });
+    }
+    user.password = newPassword;
+    await user.save();
+    res.json({ message: 'Password updated successfully.' });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/auth/change-email — change email (users only)
+router.patch('/change-email', auth, [
+  body('newEmail').isEmail().withMessage('Please provide a valid email'),
+  body('password').notEmpty().withMessage('Password is required to confirm.'),
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ status: 400, message: errors.array()[0].msg });
+
+    const { newEmail, password } = req.body;
+    const user = await User.findById(req.user._id).select('+password');
+    if (!(await user.comparePassword(password))) {
+      return res.status(401).json({ status: 401, message: 'Incorrect password. Cannot change email.' });
+    }
+    const existing = await User.findOne({ email: newEmail.toLowerCase() });
+    if (existing && String(existing._id) !== String(user._id)) {
+      return res.status(409).json({ status: 409, message: 'This email is already in use.' });
+    }
+    user.email = newEmail.toLowerCase();
+    await user.save();
+    res.json({ message: 'Email updated successfully.', email: user.email });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/auth/change-adminid — change adminId (admins only)
+router.patch('/change-adminid', auth, [
+  body('newAdminId').trim().isLength({ min: 3 }).withMessage('Admin ID must be at least 3 characters'),
+  body('password').notEmpty().withMessage('Password is required to confirm.'),
+], async (req, res, next) => {
+  try {
+    if (!req.user.isAdmin) return res.status(403).json({ status: 403, message: 'Admin access required.' });
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ status: 400, message: errors.array()[0].msg });
+
+    const { newAdminId, password } = req.body;
+    const user = await User.findById(req.user._id).select('+password');
+    if (!(await user.comparePassword(password))) {
+      return res.status(401).json({ status: 401, message: 'Incorrect password. Cannot change Admin ID.' });
+    }
+    const existing = await User.findOne({ adminId: newAdminId });
+    if (existing && String(existing._id) !== String(user._id)) {
+      return res.status(409).json({ status: 409, message: 'This Admin ID is already taken.' });
+    }
+    user.adminId = newAdminId;
+    await user.save();
+    res.json({ message: 'Admin ID updated successfully.', adminId: user.adminId });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;
