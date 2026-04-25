@@ -28,6 +28,44 @@ router.get('/users', async (req, res, next) => {
   }
 });
 
+// POST /api/admin/users — create a user
+router.post('/users', async (req, res, next) => {
+  try {
+    const { name, email, password, isAdmin, adminId } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.status(400).json({ status: 400, message: 'Name, email, and password are required' });
+    }
+
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ status: 400, message: 'User already exists with this email' });
+    }
+
+    if (isAdmin && adminId) {
+      const existingAdmin = await User.findOne({ adminId });
+      if (existingAdmin) {
+        return res.status(400).json({ status: 400, message: 'Admin ID already in use' });
+      }
+    }
+
+    const userData = { name, email, password, isAdmin: !!isAdmin };
+    if (isAdmin && adminId) {
+      userData.adminId = adminId;
+    }
+
+    const user = await User.create(userData);
+    
+    // Return user with doc count 0
+    const userObj = user.toObject();
+    delete userObj.password;
+    res.status(201).json({ user: { ...userObj, documentCount: 0 } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // DELETE /api/admin/users/:id — delete user and all their data
 router.delete('/users/:id', async (req, res, next) => {
   try {
